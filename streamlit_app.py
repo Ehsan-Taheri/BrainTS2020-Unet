@@ -22,6 +22,7 @@ if uploaded_model is not None:
         temp_model_file.write(uploaded_model.getbuffer())
         model = tf.keras.models.load_model(temp_model_file.name, custom_objects={'dice_coef': dice_coef})
     st.write("Model loaded successfully!")
+    st.write("Expected model input shape:", model.input_shape)  # Display the input shape for debugging
 
 st.title("Brain Tumor Segmentation with Multiple MRI Modalities")
 
@@ -52,7 +53,7 @@ if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
     flair_slice = flair_img[:, :, slice_num]
 
     # Resize and stack slices for model input
-    IMG_SIZE = 128  # Update if needed
+    IMG_SIZE = model.input_shape[1] if model.input_shape[1] is not None else 128  # Use model input shape if available
     t2_slice_resized = cv2.resize(t2_slice, (IMG_SIZE, IMG_SIZE))
     t1ce_slice_resized = cv2.resize(t1ce_slice, (IMG_SIZE, IMG_SIZE))
     flair_slice_resized = cv2.resize(flair_slice, (IMG_SIZE, IMG_SIZE))
@@ -61,6 +62,11 @@ if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
 
     # Normalize image
     input_img = input_img / np.max(input_img)
+
+    # Verify and reshape if necessary
+    if input_img.shape[1:] != model.input_shape[1:]:
+        st.write(f"Reshaping input from {input_img.shape} to {model.input_shape}")
+        input_img = np.reshape(input_img, model.input_shape)
 
     # Predict segmentation
     prediction = model.predict(input_img)[0]
