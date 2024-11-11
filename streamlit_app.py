@@ -82,7 +82,7 @@ if uploaded_file is not None and model is not None:
     processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
     
     # Add channel dimensions as needed
-    # Duplicate the grayscale data to create a 2-channel input
+    # Duplicate the grayscale data to create a 2-channel input (or the number of channels your model needs)
     processed_img = np.stack([processed_img, processed_img], axis=-1)  # Create 2 channels
 
     processed_img = np.expand_dims(processed_img, axis=0)  # Add batch dimension
@@ -99,12 +99,29 @@ if uploaded_file is not None and model is not None:
     # Convert the images to uint8 for Streamlit display
     slice_img_display = (slice_img_display * 255).astype(np.uint8)
 
+    # Generate a color map for each class (you can customize this with more colors if needed)
+    num_classes = prediction.shape[-1]  # Number of classes (channels)
+    color_map = [
+        (0, 0, 0),       # Background: black
+        (255, 0, 0),     # Class 1: red
+        (0, 255, 0),     # Class 2: green
+        (0, 0, 255),     # Class 3: blue
+        (255, 255, 0),   # Class 4: yellow
+    ]
+    
+    # Create an empty RGB image
+    combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
+
+    # For each class, apply its color to the prediction mask
+    for i in range(num_classes):
+        # Get the binary mask for the current class
+        class_mask = (prediction[0, :, :, i] > 0.5).astype(np.uint8)  # Threshold prediction
+
+        # Apply color to the class mask
+        combined_img[class_mask == 1] = color_map[i]
+
     # Display the original slice
     st.image(slice_img_display, caption="Original MRI Slice", use_column_width=True)
     
-    # Display each class (channel) in the prediction
-    num_classes = prediction.shape[-1]  # Number of classes (channels)
-    for i in range(num_classes):
-        # Normalize and convert each class to uint8 for display
-        class_prediction = (prediction[0, :, :, i] * 255).astype(np.uint8)
-        st.image(class_prediction, caption=f"Predicted Class {i}", use_column_width=True)
+    # Display the combined color map image
+    st.image(combined_img, caption="Predicted Segmentation (All Classes)", use_column_width=True)
