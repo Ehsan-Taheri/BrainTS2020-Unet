@@ -86,12 +86,21 @@ if uploaded_file is not None and model is not None:
 
     processed_img = np.expand_dims(processed_img, axis=0)  # Add batch dimension
 
-    # Normalize and predict
+    # Normalize the image to [0, 1] range for display and prediction
     processed_img = processed_img / np.max(processed_img)  # Normalize the image
+
+    # Predict segmentation
     prediction = model.predict(processed_img)
 
+    # Normalize the original slice image for display
+    slice_img_display = slice_img / np.max(slice_img)  # Normalize the slice image
+
+    # Convert the images to uint8 for Streamlit display
+    slice_img_display = (slice_img_display * 255).astype(np.uint8)
+    prediction_display = (prediction[0, :, :, 1] * 255).astype(np.uint8)  # Only the second channel for segmentation
+
     # Display original slice
-    st.image(slice_img, caption="Original MRI Slice", use_column_width=True)
+    st.image(slice_img_display, caption="Original MRI Slice", use_column_width=True)
     
-    # Display segmented slice
-    st.image(prediction[0, :, :, 1], caption="Predicted Segmentation", use_column_width=True)
+    # Display predicted segmentation
+    st.image(prediction_display, caption="Predicted Segmentation", use_column_width=True)
