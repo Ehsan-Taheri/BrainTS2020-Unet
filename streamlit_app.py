@@ -3,32 +3,28 @@ import tensorflow as tf
 import numpy as np
 import nibabel as nib
 import cv2
-from PIL import Image
 import keras.backend as K
 import tempfile
 
-# Dice Coefficient Metric
+# Custom metrics
 def dice_coef(y_true, y_pred, smooth=1):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
-# Precision Metric
 def precision(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
     precision_value = true_positives / (predicted_positives + K.epsilon())
     return precision_value
 
-# Sensitivity Metric (also known as recall)
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     sensitivity_value = true_positives / (possible_positives + K.epsilon())
     return sensitivity_value
 
-# Specificity Metric
 def specificity(y_true, y_pred):
     true_negatives = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
     possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
@@ -75,16 +71,20 @@ if uploaded_file is not None and model is not None:
     slice_num = st.slider("Select MRI Slice", 0, img_data.shape[2] - 1, img_data.shape[2] // 2)
     slice_img = img_data[:, :, slice_num]
     
-    # Define the image size for model input
+    # Print model input shape for debugging
+    st.write("Model input shape:", model.input_shape)
+
+    # Define the image size for model input (use your model's expected size)
     IMG_SIZE = 128  # Update this based on your model's expected input size
     
     # Preprocess for model
     processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
-    processed_img = np.expand_dims(processed_img, axis=-1)  # Add channel dimension
+    processed_img = np.expand_dims(processed_img, axis=-1)  # Add channel dimension (e.g., grayscale)
     processed_img = np.expand_dims(processed_img, axis=0)   # Add batch dimension
 
     # Normalize and predict
-    prediction = model.predict(processed_img / np.max(processed_img))
+    processed_img = processed_img / np.max(processed_img)  # Normalize the image
+    prediction = model.predict(processed_img)
 
     # Display original slice
     st.image(slice_img, caption="Original MRI Slice", use_column_width=True)
