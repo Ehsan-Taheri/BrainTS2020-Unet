@@ -50,19 +50,24 @@ if uploaded_model is not None:
 # App title
 st.title("Brain Tumor Segmentation")
 
-# File upload
-uploaded_file = st.file_uploader("Upload an MRI file (in .nii format)", type=["nii"])
+# Upload the MRI image and ground truth image files
+uploaded_mri_file = st.file_uploader("Upload MRI file (in .nii format)", type=["nii"])
+uploaded_gt_file = st.file_uploader("Upload Ground Truth file (in .nii format)", type=["nii"])
 
-# Process the uploaded file
-if uploaded_file is not None:
-    # Load the image
-    img = nib.load(uploaded_file)
-    img_data = img.get_fdata()
-    
+# Process the uploaded files
+if uploaded_mri_file is not None and uploaded_gt_file is not None:
+    # Load the MRI image and ground truth segmentation
+    mri_img = nib.load(uploaded_mri_file)
+    mri_img_data = mri_img.get_fdata()
+
+    gt_img = nib.load(uploaded_gt_file)
+    gt_img_data = gt_img.get_fdata()
+
     # Select a slice (or allow user to choose)
-    slice_num = st.slider("Select MRI Slice", 0, img_data.shape[2] - 1, img_data.shape[2] // 2)
-    slice_img = img_data[:, :, slice_num]
-    
+    slice_num = st.slider("Select MRI Slice", 0, mri_img_data.shape[2] - 1, mri_img_data.shape[2] // 2)
+    slice_img = mri_img_data[:, :, slice_num]
+    gt_slice = gt_img_data[:, :, slice_num]
+
     # Preprocess for model
     IMG_SIZE = 128  # Set appropriate size for the model input
     processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
@@ -86,12 +91,11 @@ if uploaded_file is not None:
         combined_img[class_mask == 1] = color_map[i]  # Apply color to predicted mask
 
     # Create the ground truth mask (gt_slice is the ground truth corresponding to the slice)
-    gt_slice = img_data[:, :, slice_num]  # This should be your ground truth for comparison
     gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
     for i in range(num_classes):
         gt_class_mask = (gt_slice == i).astype(np.uint8)
         gt_class_mask_resized = cv2.resize(gt_class_mask, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
         gt_combined_img[gt_class_mask_resized == 1] = color_map[i]
 
-    # Display the images
+    # Display the images side by side
     st.image([slice_img, combined_img, gt_combined_img], caption=["Original MRI Slice", "Predicted Segmentation", "Ground Truth"], use_column_width=True)
