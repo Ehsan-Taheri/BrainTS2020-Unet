@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 import nibabel as nib
 import cv2
+from PIL import Image
 import keras.backend as K
 import tempfile
 
@@ -89,7 +90,7 @@ if uploaded_file is not None and model is not None:
     # Normalize the image to [0, 1] range for display and prediction
     processed_img = processed_img / np.max(processed_img)  # Normalize the image
 
-    # Predict segmentation
+    # Predict segmentation (all classes)
     prediction = model.predict(processed_img)
 
     # Normalize the original slice image for display
@@ -97,10 +98,13 @@ if uploaded_file is not None and model is not None:
 
     # Convert the images to uint8 for Streamlit display
     slice_img_display = (slice_img_display * 255).astype(np.uint8)
-    prediction_display = (prediction[0, :, :, 1] * 255).astype(np.uint8)  # Only the second channel for segmentation
 
-    # Display original slice
+    # Display the original slice
     st.image(slice_img_display, caption="Original MRI Slice", use_column_width=True)
     
-    # Display predicted segmentation
-    st.image(prediction_display, caption="Predicted Segmentation", use_column_width=True)
+    # Display each class (channel) in the prediction
+    num_classes = prediction.shape[-1]  # Number of classes (channels)
+    for i in range(num_classes):
+        # Normalize and convert each class to uint8 for display
+        class_prediction = (prediction[0, :, :, i] * 255).astype(np.uint8)
+        st.image(class_prediction, caption=f"Predicted Class {i}", use_column_width=True)
