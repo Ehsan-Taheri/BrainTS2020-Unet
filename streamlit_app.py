@@ -36,16 +36,18 @@ def specificity(y_true, y_pred):
     specificity_value = true_negatives / (possible_negatives + K.epsilon())
     return specificity_value
 
+model_path = "/mount/src/trained_brain_mri_model.h5"
 
 # Load model
-model = tf.keras.models.load_model("/Users/ciro/Downloads/trained_brain_mri_model.h5", 
-                                   custom_objects={
-                                       "dice_coef": dice_coef,
-                                       "precision": precision,
-                                       "sensitivity": sensitivity,
-                                       "specificity": specificity
-                                   })
-
+uploaded_file = st.file_uploader("Upload the model file", type="h5")
+if uploaded_file is not None:
+    model = tf.keras.models.load_model(uploaded_file, custom_objects={
+        'dice_coef': dice_coef,
+        'precision': precision,
+        'sensitivity': sensitivity,
+        'specificity': specificity,
+    })
+    st.write("Model loaded successfully!")
 # App title
 st.title("Brain Tumor Segmentation")
 
