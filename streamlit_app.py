@@ -123,18 +123,22 @@ if uploaded_file is not None and gt_file is not None and model is not None:
         (255, 255, 0),   # Class 4: yellow
     ]
     
-    # Create the combined ground truth image
-gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
+slice_img_display = slice_img  # No processing needed if the slice is already in the correct format
 
-# Make sure ground truth values are within the valid class range (e.g., 0, 1, 2, 3, etc.)
+# Post-process model prediction for segmentation visualization
+predicted_class_mask = np.argmax(prediction, axis=-1)  # Get class with the highest probability per pixel
+
+# Create the combined image for the predicted segmentation (using colors for each class)
+combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
 for i in range(num_classes):
-    # Ground truth mask for each class: Binary mask where class equals i
-    gt_class_mask = (gt_slice == i).astype(np.uint8)
-    
-    # Ensure that the ground truth class mask has the same shape as the combined image
-    gt_class_mask_resized = cv2.resize(gt_class_mask, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
+    class_mask = (predicted_class_mask == i).astype(np.uint8)
+    combined_img[class_mask == 1] = color_map[i]  # Apply color to predicted mask
 
-    # Apply color to the GT mask
+# Create the combined ground truth image (apply colors as per the ground truth labels)
+gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
+for i in range(num_classes):
+    gt_class_mask = (gt_slice == i).astype(np.uint8)
+    gt_class_mask_resized = cv2.resize(gt_class_mask, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
     gt_combined_img[gt_class_mask_resized == 1] = color_map[i]
 
 # Display the original slice, predicted segmentation, and ground truth side by side
