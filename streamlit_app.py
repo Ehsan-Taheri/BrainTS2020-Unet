@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import tensorflow as tf
 import numpy as np
@@ -7,6 +5,7 @@ import nibabel as nib
 import cv2
 from PIL import Image
 import keras.backend as K
+import tempfile
 
 # Dice Coefficient Metric
 def dice_coef(y_true, y_pred, smooth=1):
@@ -36,45 +35,35 @@ def specificity(y_true, y_pred):
     specificity_value = true_negatives / (possible_negatives + K.epsilon())
     return specificity_value
 
-model_path = "/mount/src/trained_brain_mri_model.h5"
+# App title
+st.title("Brain Tumor Segmentation")
 
-# Load model
-uploaded_file = st.file_uploader("Upload the model file", type="h5")
-if uploaded_file is not None:
-    model = tf.keras.models.load_model(uploaded_file, custom_objects={
+# File upload for model
+model_file = st.file_uploader("Upload the model file", type="h5")
+model = None
+
+if model_file is not None:
+    # Save uploaded model to a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as temp_model_file:
+        temp_model_file.write(model_file.getbuffer())
+        temp_model_path = temp_model_file.name
+
+    # Load model
+    model = tf.keras.models.load_model(temp_model_path, custom_objects={
         'dice_coef': dice_coef,
         'precision': precision,
         'sensitivity': sensitivity,
         'specificity': specificity,
     })
     st.write("Model loaded successfully!")
-# App title
-st.title("Brain Tumor Segmentation")
 
-# File upload
+# MRI file upload
 uploaded_file = st.file_uploader("Upload an MRI file (in .nii format)", type=["nii"])
 
-# Process the uploaded file
-if uploaded_file is not None:
-    # Load the image
+# Process the uploaded MRI file
+if uploaded_file is not None and model is not None:
+    # Load the MRI image
     img = nib.load(uploaded_file)
     img_data = img.get_fdata()
     
     # Select a slice (or allow user to choose)
-    slice_num = st.slider("Select MRI Slice", 0, img_data.shape[2] - 1, img_data.shape[2] // 2)
-    slice_img = img_data[:, :, slice_num]
-    
-    # Preprocess for model
-    processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
-    processed_img = np.expand_dims(processed_img, axis=-1)  # Add channel dimension
-    processed_img = np.expand_dims(processed_img, axis=0)   # Add batch dimension
-
-    # Predict
-    prediction = model.predict(processed_img / np.max(processed_img))
-
-    # Display original slice
-    st.image(slice_img, caption="Original MRI Slice", use_column_width=True)
-    
-    # Display segmented slice
-    st.image(prediction[0, :, :, 1], caption="Predicted Segmentation", use_column_width=True)
-
