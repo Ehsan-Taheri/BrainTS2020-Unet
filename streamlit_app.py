@@ -57,28 +57,40 @@ if model_file is not None:
 # MRI file upload
 uploaded_file = st.file_uploader("Upload an MRI file (in .nii format)", type=["nii"])
 
-# Process the uploaded MRI file
-if uploaded_file is not None and model is not None:
-    # Save the uploaded MRI file to a temporary file
+# Ground truth file upload
+gt_file = st.file_uploader("Upload the ground truth segmentation file (in .nii format)", type=["nii"])
+
+# Process the uploaded MRI and ground truth files
+if uploaded_file is not None and gt_file is not None and model is not None:
+    # Save the uploaded MRI and ground truth files to temporary files
     with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_mri_file:
         temp_mri_file.write(uploaded_file.getbuffer())
         temp_mri_path = temp_mri_file.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_gt_file:
+        temp_gt_file.write(gt_file.getbuffer())
+        temp_gt_path = temp_gt_file.name
 
     # Load the MRI image using the temporary file path
     img = nib.load(temp_mri_path)
     img_data = img.get_fdata()
     
+    # Load the ground truth image
+    gt_img = nib.load(temp_gt_path)
+    gt_data = gt_img.get_fdata()
+
     # Select a slice (or allow user to choose)
     slice_num = st.slider("Select MRI Slice", 0, img_data.shape[2] - 1, img_data.shape[2] // 2)
     slice_img = img_data[:, :, slice_num]
-    
+    gt_slice = gt_data[:, :, slice_num]
+
     # Print model input shape for debugging
     st.write("Model input shape:", model.input_shape)
 
     # Define the image size for model input (use your model's expected size)
     IMG_SIZE = 128  # Update this based on your model's expected input size
     
-    # Preprocess for model
+    # Preprocess the MRI image for model prediction
     processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
     
     # Add channel dimensions as needed
@@ -93,11 +105,13 @@ if uploaded_file is not None and model is not None:
     # Predict segmentation (all classes)
     prediction = model.predict(processed_img)
 
-    # Normalize the original slice image for display
+    # Normalize the original slice and ground truth for display
     slice_img_display = slice_img / np.max(slice_img)  # Normalize the slice image
+    gt_slice_display = gt_slice / np.max(gt_slice)  # Normalize the ground truth image
 
     # Convert the images to uint8 for Streamlit display
     slice_img_display = (slice_img_display * 255).astype(np.uint8)
+    gt_slice_display = (gt_slice_display * 255).astype(np.uint8)
 
     # Generate a color map for each class (you can customize this with more colors if needed)
     num_classes = prediction.shape[-1]  # Number of classes (channels)
@@ -109,7 +123,7 @@ if uploaded_file is not None and model is not None:
         (255, 255, 0),   # Class 4: yellow
     ]
     
-    # Create an empty RGB image
+    # Create an empty RGB image for the combined prediction
     combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
 
     # For each class, apply its color to the prediction mask
@@ -120,8 +134,11 @@ if uploaded_file is not None and model is not None:
         # Apply color to the class mask
         combined_img[class_mask == 1] = color_map[i]
 
-    # Display the original slice
-    st.image(slice_img_display, caption="Original MRI Slice", use_column_width=True)
-    
-    # Display the combined color map image
-    st.image(combined_img, caption="Predicted Segmentation (All Classes)", use_column_width=True)
+    # Create the combined ground truth image
+    gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
+    for i in range(num_classes):
+        gt_class_mask = (gt_slice == i).astype(np.uint8)  # Ground truth mask for each class
+        gt_combined_img[gt_class_mask == 1] = color_map[i]  # Apply color to the GT mask
+
+    # Display the original slice, predicted segmentation, and ground truth side by side
+    st.image([slice_img_display, combined_img, gt_combined_img], caption=["Original MRI Slice", "Predicted Segmentation", "Ground Truth"], use_column_width=True)
