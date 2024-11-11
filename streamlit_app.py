@@ -5,6 +5,7 @@ import nibabel as nib
 import cv2
 import keras.backend as K
 from PIL import Image
+import os
 
 # Define custom metrics if needed
 def dice_coef(y_true, y_pred, smooth=1):
@@ -13,11 +14,14 @@ def dice_coef(y_true, y_pred, smooth=1):
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
-# Load model
+# Load model from uploaded file
 uploaded_model = st.file_uploader("Upload the model file (.h5)", type="h5")
 model = None
 if uploaded_model is not None:
-    model = tf.keras.models.load_model(uploaded_model, custom_objects={'dice_coef': dice_coef})
+    with open("temp_model.h5", "wb") as f:
+        f.write(uploaded_model.getbuffer())
+    model = tf.keras.models.load_model("temp_model.h5", custom_objects={'dice_coef': dice_coef})
+    os.remove("temp_model.h5")
     st.write("Model loaded successfully!")
 
 st.title("Brain Tumor Segmentation with Multiple MRI Modalities")
