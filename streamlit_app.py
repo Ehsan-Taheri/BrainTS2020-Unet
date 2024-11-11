@@ -123,22 +123,19 @@ if uploaded_file is not None and gt_file is not None and model is not None:
         (255, 255, 0),   # Class 4: yellow
     ]
     
-    # Create an empty RGB image for the combined prediction
-    combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
-
-    # For each class, apply its color to the prediction mask
-    for i in range(num_classes):
-        # Get the binary mask for the current class
-        class_mask = (prediction[0, :, :, i] > 0.5).astype(np.uint8)  # Threshold prediction
-
-        # Apply color to the class mask
-        combined_img[class_mask == 1] = color_map[i]
-
     # Create the combined ground truth image
-    gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
-    for i in range(num_classes):
-        gt_class_mask = (gt_slice == i).astype(np.uint8)  # Ground truth mask for each class
-        gt_combined_img[gt_class_mask == 1] = color_map[i]  # Apply color to the GT mask
+gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
 
-    # Display the original slice, predicted segmentation, and ground truth side by side
-    st.image([slice_img_display, combined_img, gt_combined_img], caption=["Original MRI Slice", "Predicted Segmentation", "Ground Truth"], use_column_width=True)
+# Make sure ground truth values are within the valid class range (e.g., 0, 1, 2, 3, etc.)
+for i in range(num_classes):
+    # Ground truth mask for each class: Binary mask where class equals i
+    gt_class_mask = (gt_slice == i).astype(np.uint8)
+    
+    # Ensure that the ground truth class mask has the same shape as the combined image
+    gt_class_mask_resized = cv2.resize(gt_class_mask, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
+
+    # Apply color to the GT mask
+    gt_combined_img[gt_class_mask_resized == 1] = color_map[i]
+
+# Display the original slice, predicted segmentation, and ground truth side by side
+st.image([slice_img_display, combined_img, gt_combined_img], caption=["Original MRI Slice", "Predicted Segmentation", "Ground Truth"], use_column_width=True)
