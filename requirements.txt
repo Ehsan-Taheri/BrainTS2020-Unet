@@ -1,2 +1,1 @@
-pip install streamlit
-pip install tensorflow
+tensorflow==2.12.0
