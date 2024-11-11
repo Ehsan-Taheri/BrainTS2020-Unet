@@ -33,11 +33,24 @@ uploaded_flair = st.file_uploader("Upload FLAIR MRI file (.nii)", type=["nii"])
 
 # Process files if all are uploaded
 if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
+    # Temporarily save the uploaded files
+    with open("temp_t2.nii", "wb") as f:
+        f.write(uploaded_t2.getbuffer())
+    with open("temp_t1ce.nii", "wb") as f:
+        f.write(uploaded_t1ce.getbuffer())
+    with open("temp_flair.nii", "wb") as f:
+        f.write(uploaded_flair.getbuffer())
+
     # Load images
-    t2_img = nib.load(uploaded_t2).get_fdata()
-    t1ce_img = nib.load(uploaded_t1ce).get_fdata()
-    flair_img = nib.load(uploaded_flair).get_fdata()
-    
+    t2_img = nib.load("temp_t2.nii").get_fdata()
+    t1ce_img = nib.load("temp_t1ce.nii").get_fdata()
+    flair_img = nib.load("temp_flair.nii").get_fdata()
+
+    # Clean up temporary files
+    os.remove("temp_t2.nii")
+    os.remove("temp_t1ce.nii")
+    os.remove("temp_flair.nii")
+
     # Select a slice to display
     slice_num = st.slider("Select MRI Slice", 0, t2_img.shape[2] - 1, t2_img.shape[2] // 2)
     t2_slice = t2_img[:, :, slice_num]
