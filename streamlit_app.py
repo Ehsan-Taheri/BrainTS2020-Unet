@@ -6,7 +6,7 @@ import cv2
 import keras.backend as K
 import tempfile
 
-# Custom metrics
+# Custom metrics (same as before)
 def dice_coef(y_true, y_pred, smooth=1):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
@@ -79,8 +79,12 @@ if uploaded_file is not None and model is not None:
     
     # Preprocess for model
     processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
-    processed_img = np.expand_dims(processed_img, axis=-1)  # Add channel dimension (e.g., grayscale)
-    processed_img = np.expand_dims(processed_img, axis=0)   # Add batch dimension
+    
+    # Add channel dimensions as needed
+    # Duplicate the grayscale data to create a 2-channel input
+    processed_img = np.stack([processed_img, processed_img], axis=-1)  # Create 2 channels
+
+    processed_img = np.expand_dims(processed_img, axis=0)  # Add batch dimension
 
     # Normalize and predict
     processed_img = processed_img / np.max(processed_img)  # Normalize the image
