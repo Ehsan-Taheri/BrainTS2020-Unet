@@ -3,3 +3,4 @@ nibabel==5.2.1
 opencv-python-headless==4.7.0.72
 numpy
 streamlit
+keras
