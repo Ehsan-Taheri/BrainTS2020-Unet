@@ -36,17 +36,25 @@ def specificity(y_true, y_pred):
 
 model_path = "/mount/src/trained_brain_mri_model.h5"
 
-# Load model
-uploaded_model = st.file_uploader("Upload the model file", type="h5")
-if uploaded_model is not None:
+
+# Function to load the model from the uploaded file
+def load_uploaded_model(uploaded_model):
     model = tf.keras.models.load_model(uploaded_model, custom_objects={
         'dice_coef': dice_coef,
         'precision': precision,
         'sensitivity': sensitivity,
         'specificity': specificity,
     })
-    st.write("Model loaded successfully!")
+    return model
 
+# Streamlit file uploader for model
+uploaded_model = st.file_uploader("Upload the model file", type="h5")
+
+if uploaded_model is not None:
+    # Load the model
+    model = load_uploaded_model(uploaded_model)
+    st.write("Model loaded successfully!")
+    
 # App title
 st.title("Brain Tumor Segmentation")
 
