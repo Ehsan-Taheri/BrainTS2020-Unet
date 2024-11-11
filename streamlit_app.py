@@ -3,142 +3,68 @@ import tensorflow as tf
 import numpy as np
 import nibabel as nib
 import cv2
-from PIL import Image
 import keras.backend as K
-import tempfile
+from PIL import Image
 
-# Custom metrics (same as before)
+# Define custom metrics if needed
 def dice_coef(y_true, y_pred, smooth=1):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
-def precision(y_true, y_pred):
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    precision_value = true_positives / (predicted_positives + K.epsilon())
-    return precision_value
-
-def sensitivity(y_true, y_pred):
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-    sensitivity_value = true_positives / (possible_positives + K.epsilon())
-    return sensitivity_value
-
-def specificity(y_true, y_pred):
-    true_negatives = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
-    possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
-    specificity_value = true_negatives / (possible_negatives + K.epsilon())
-    return specificity_value
-
-# App title
-st.title("Brain Tumor Segmentation")
-
-# File upload for model
-model_file = st.file_uploader("Upload the model file", type="h5")
+# Load model
+uploaded_model = st.file_uploader("Upload the model file (.h5)", type="h5")
 model = None
-
-if model_file is not None:
-    # Save uploaded model to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as temp_model_file:
-        temp_model_file.write(model_file.getbuffer())
-        temp_model_path = temp_model_file.name
-
-    # Load model
-    model = tf.keras.models.load_model(temp_model_path, custom_objects={
-        'dice_coef': dice_coef,
-        'precision': precision,
-        'sensitivity': sensitivity,
-        'specificity': specificity,
-    })
+if uploaded_model is not None:
+    model = tf.keras.models.load_model(uploaded_model, custom_objects={'dice_coef': dice_coef})
     st.write("Model loaded successfully!")
 
-# MRI file upload
-uploaded_file = st.file_uploader("Upload an MRI file (in .nii format)", type=["nii"])
+st.title("Brain Tumor Segmentation with Multiple MRI Modalities")
 
-# Ground truth file upload
-gt_file = st.file_uploader("Upload the ground truth segmentation file (in .nii format)", type=["nii"])
+# File upload for the three modalities
+uploaded_t2 = st.file_uploader("Upload T2 MRI file (.nii)", type=["nii"])
+uploaded_t1ce = st.file_uploader("Upload T1ce MRI file (.nii)", type=["nii"])
+uploaded_flair = st.file_uploader("Upload FLAIR MRI file (.nii)", type=["nii"])
 
-# Process the uploaded MRI and ground truth files
-if uploaded_file is not None and gt_file is not None and model is not None:
-    # Save the uploaded MRI and ground truth files to temporary files
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_mri_file:
-        temp_mri_file.write(uploaded_file.getbuffer())
-        temp_mri_path = temp_mri_file.name
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_gt_file:
-        temp_gt_file.write(gt_file.getbuffer())
-        temp_gt_path = temp_gt_file.name
-
-    # Load the MRI image using the temporary file path
-    img = nib.load(temp_mri_path)
-    img_data = img.get_fdata()
+# Process files if all are uploaded
+if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
+    # Load images
+    t2_img = nib.load(uploaded_t2).get_fdata()
+    t1ce_img = nib.load(uploaded_t1ce).get_fdata()
+    flair_img = nib.load(uploaded_flair).get_fdata()
     
-    # Load the ground truth image
-    gt_img = nib.load(temp_gt_path)
-    gt_data = gt_img.get_fdata()
+    # Select a slice to display
+    slice_num = st.slider("Select MRI Slice", 0, t2_img.shape[2] - 1, t2_img.shape[2] // 2)
+    t2_slice = t2_img[:, :, slice_num]
+    t1ce_slice = t1ce_img[:, :, slice_num]
+    flair_slice = flair_img[:, :, slice_num]
 
-    # Select a slice (or allow user to choose)
-    slice_num = st.slider("Select MRI Slice", 0, img_data.shape[2] - 1, img_data.shape[2] // 2)
-    slice_img = img_data[:, :, slice_num]
-    gt_slice = gt_data[:, :, slice_num]
+    # Resize and stack slices for model input
+    IMG_SIZE = 128  # Update if needed
+    t2_slice_resized = cv2.resize(t2_slice, (IMG_SIZE, IMG_SIZE))
+    t1ce_slice_resized = cv2.resize(t1ce_slice, (IMG_SIZE, IMG_SIZE))
+    flair_slice_resized = cv2.resize(flair_slice, (IMG_SIZE, IMG_SIZE))
+    input_img = np.stack([t2_slice_resized, t1ce_slice_resized, flair_slice_resized], axis=-1)
+    input_img = np.expand_dims(input_img, axis=0)  # Add batch dimension
 
-    # Print model input shape for debugging
-    st.write("Model input shape:", model.input_shape)
+    # Normalize image
+    input_img = input_img / np.max(input_img)
 
-    # Define the image size for model input (use your model's expected size)
-    IMG_SIZE = 128  # Update this based on your model's expected input size
+    # Predict segmentation
+    prediction = model.predict(input_img)[0]
     
-    # Preprocess the MRI image for model prediction
-    processed_img = cv2.resize(slice_img, (IMG_SIZE, IMG_SIZE))
-    
-    # Add channel dimensions as needed
-    # Duplicate the grayscale data to create a 2-channel input (or the number of channels your model needs)
-    processed_img = np.stack([processed_img, processed_img], axis=-1)  # Create 2 channels
+    # Convert prediction to color mask
+    mask = np.argmax(prediction, axis=-1)
+    color_map = {
+        0: (0, 0, 0),        # Background
+        1: (255, 0, 0),      # Tumor region 1
+        2: (0, 255, 0),      # Tumor region 2
+        3: (0, 0, 255)       # Tumor region 3
+    }
+    segmented_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
+    for class_id, color in color_map.items():
+        segmented_img[mask == class_id] = color
 
-    processed_img = np.expand_dims(processed_img, axis=0)  # Add batch dimension
-
-    # Normalize the image to [0, 1] range for display and prediction
-    processed_img = processed_img / np.max(processed_img)  # Normalize the image
-
-    # Predict segmentation (all classes)
-    prediction = model.predict(processed_img)
-
-    # Normalize the original slice and ground truth for display
-    slice_img_display = slice_img / np.max(slice_img)  # Normalize the slice image
-    gt_slice_display = gt_slice / np.max(gt_slice)  # Normalize the ground truth image
-
-    # Convert the images to uint8 for Streamlit display
-    slice_img_display = (slice_img_display * 255).astype(np.uint8)
-    gt_slice_display = (gt_slice_display * 255).astype(np.uint8)
-
-    # Generate a color map for each class (you can customize this with more colors if needed)
-    num_classes = prediction.shape[-1]  # Number of classes (channels)
-    color_map = [
-        (0, 0, 0),       # Background: black
-        (255, 0, 0),     # Class 1: red
-        (0, 255, 0),     # Class 2: green
-        (0, 0, 255),     # Class 3: blue
-        (255, 255, 0),   # Class 4: yellow
-    ]
-    
-    # Create an empty RGB image for the combined prediction
-    combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
-
-    # For each class, apply its color to the prediction mask
-    for i in range(num_classes):
-        # Get the binary mask for the current class
-        class_mask = (prediction[0, :, :, i] > 0.5).astype(np.uint8)  # Threshold prediction
-
-        # Apply color to the class mask
-        combined_img[class_mask == 1] = color_map[i]
-
-    # Create the combined ground truth image
-    gt_combined_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
-    for i in range(num_classes):
-        gt_class_mask = (gt_slice == i).astype(np.uint8)  # Ground truth mask for each class
-        gt_combined_img[gt_class_mask == 1] = color_map[i]  # Apply color to the GT mask
-
-    # Display the original slice, predicted segmentation, and ground truth side by side
-    st.image([slice_img_display, combined_img, gt_combined_img], caption=["Original MRI Slice", "Predicted Segmentation", "Ground Truth"], use_column_width=True)
+    # Display original and segmented images side-by-side
+    st.image([t2_slice, segmented_img], caption=["Original T2 Slice", "Predicted Segmentation"], use_column_width=True)
