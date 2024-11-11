@@ -4,7 +4,7 @@ import numpy as np
 import nibabel as nib
 import cv2
 import keras.backend as K
-from PIL import Image
+import tempfile
 import os
 
 # Define custom metrics if needed
@@ -18,10 +18,9 @@ def dice_coef(y_true, y_pred, smooth=1):
 uploaded_model = st.file_uploader("Upload the model file (.h5)", type="h5")
 model = None
 if uploaded_model is not None:
-    with open("temp_model.h5", "wb") as f:
-        f.write(uploaded_model.getbuffer())
-    model = tf.keras.models.load_model("temp_model.h5", custom_objects={'dice_coef': dice_coef})
-    os.remove("temp_model.h5")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as temp_model_file:
+        temp_model_file.write(uploaded_model.getbuffer())
+        model = tf.keras.models.load_model(temp_model_file.name, custom_objects={'dice_coef': dice_coef})
     st.write("Model loaded successfully!")
 
 st.title("Brain Tumor Segmentation with Multiple MRI Modalities")
@@ -34,22 +33,17 @@ uploaded_flair = st.file_uploader("Upload FLAIR MRI file (.nii)", type=["nii"])
 # Process files if all are uploaded
 if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
     # Temporarily save the uploaded files
-    with open("temp_t2.nii", "wb") as f:
-        f.write(uploaded_t2.getbuffer())
-    with open("temp_t1ce.nii", "wb") as f:
-        f.write(uploaded_t1ce.getbuffer())
-    with open("temp_flair.nii", "wb") as f:
-        f.write(uploaded_flair.getbuffer())
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_t2:
+        temp_t2.write(uploaded_t2.getbuffer())
+        t2_img = nib.load(temp_t2.name).get_fdata()
 
-    # Load images
-    t2_img = nib.load("temp_t2.nii").get_fdata()
-    t1ce_img = nib.load("temp_t1ce.nii").get_fdata()
-    flair_img = nib.load("temp_flair.nii").get_fdata()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_t1ce:
+        temp_t1ce.write(uploaded_t1ce.getbuffer())
+        t1ce_img = nib.load(temp_t1ce.name).get_fdata()
 
-    # Clean up temporary files
-    os.remove("temp_t2.nii")
-    os.remove("temp_t1ce.nii")
-    os.remove("temp_flair.nii")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_flair:
+        temp_flair.write(uploaded_flair.getbuffer())
+        flair_img = nib.load(temp_flair.name).get_fdata()
 
     # Select a slice to display
     slice_num = st.slider("Select MRI Slice", 0, t2_img.shape[2] - 1, t2_img.shape[2] // 2)
