@@ -22,7 +22,7 @@ def load_model_from_drive(drive_url):
     return model
 
 # Google Drive link for the pre-trained model file (.h5)
-google_drive_url = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"  # Replace FILE_ID with your model's ID
+google_drive_url = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"
 
 # Load the model
 st.write("Loading model from Google Drive...")
@@ -80,9 +80,9 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
         prediction_volume[:, :, i, :] = prediction_slice  # Store prediction
 
     # Show the selected slice for T1ce, T2, FLAIR, and prediction
-    t1ce_slice = t1ce_img_resized[:, :, slice_index]
-    t2_slice = t2_img_resized[:, :, slice_index]
-    flair_slice = flair_img_resized[:, :, slice_index]
+    t1ce_slice = np.clip(t1ce_img_resized[:, :, slice_index] / np.max(t1ce_img_resized), 0, 1)
+    t2_slice = np.clip(t2_img_resized[:, :, slice_index] / np.max(t2_img_resized), 0, 1)
+    flair_slice = np.clip(flair_img_resized[:, :, slice_index] / np.max(flair_img_resized), 0, 1)
     mask = np.argmax(prediction_volume[:, :, slice_index, :], axis=-1)
 
     # Apply color mapping for each class in mask
