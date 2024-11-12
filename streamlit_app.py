@@ -32,7 +32,7 @@ if model is None:
 st.write("Model loaded successfully!")
 
 # Title and instructions
-st.title("3D Brain Tumor Segmentation with MRI Modalities")
+st.title("2D Brain Tumor Segmentation with MRI Modalities")
 st.write("Upload three MRI modalities: T1ce, T2, and FLAIR in NIfTI (.nii) format.")
 
 # File uploads
@@ -55,57 +55,52 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
         temp_flair.write(uploaded_flair.getbuffer())
         flair_img = nib.load(temp_flair.name).get_fdata()
 
-    # Resize volumes to (128, 128, 128) if necessary
+    # Resize volumes to (128, 128) per slice if necessary
     IMG_SIZE = 128
     t1ce_img_resized = np.stack([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in t1ce_img], axis=2)
     t2_img_resized = np.stack([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in t2_img], axis=2)
     flair_img_resized = np.stack([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in flair_img], axis=2)
 
-    # Ensure the resized images have the correct depth of 128
-    t1ce_img_resized = t1ce_img_resized[:, :, :IMG_SIZE]
-    t2_img_resized = t2_img_resized[:, :, :IMG_SIZE]
-    flair_img_resized = flair_img_resized[:, :, :IMG_SIZE]
+    # Stack modalities along the channel dimension for 2D input slices
+    combined_slices = np.stack([t1ce_img_resized, t2_img_resized, flair_img_resized], axis=-1)
 
-    # Stack modalities along the last dimension to form input of shape (128, 128, 128, 3)
-    input_img = np.stack([t1ce_img_resized, t2_img_resized, flair_img_resized], axis=-1)
-    input_img = np.expand_dims(input_img, axis=0)  # Add batch dimension
-    input_img = input_img / np.max(input_img)  # Normalize
+    # Create an empty volume to store the 2D predictions for each slice
+    prediction_volume = np.zeros((IMG_SIZE, IMG_SIZE, combined_slices.shape[2], 4))
 
-    # Verify shape of input to model
-    st.write(f"Input shape to model: {input_img.shape}")  # Should be (1, 128, 128, 128, 3)
+    # Slider to select slice index
+    slice_index = st.slider("Select Slice Number", 0, combined_slices.shape[2] - 1, combined_slices.shape[2] // 2)
 
-    # Prediction
-    try:
-        st.write("Predicting segmentation mask...")
-        prediction = model.predict(input_img)[0]  # Output should be (128, 128, 128, 4)
+    # Process each slice independently for prediction
+    for i in range(combined_slices.shape[2]):
+        input_slice = combined_slices[:, :, i, :2]  # Select first two modalities per model's input expectation
+        input_slice = np.expand_dims(input_slice, axis=0)  # Add batch dimension
 
-        # Create a slider for selecting slices
-        slice_index = st.slider("Select Slice Number", 0, IMG_SIZE - 1, IMG_SIZE // 2)
+        # Predict segmentation mask for the slice
+        prediction_slice = model.predict(input_slice)[0]
+        prediction_volume[:, :, i, :] = prediction_slice  # Store prediction
 
-        # Extract the selected slice for each modality and prediction
-        t1ce_slice = t1ce_img_resized[:, :, slice_index]
-        t2_slice = t2_img_resized[:, :, slice_index]
-        flair_slice = flair_img_resized[:, :, slice_index]
-        prediction_slice = prediction[:, :, slice_index, :]
+    # Show the selected slice for T1ce, T2, FLAIR, and prediction
+    t1ce_slice = t1ce_img_resized[:, :, slice_index]
+    t2_slice = t2_img_resized[:, :, slice_index]
+    flair_slice = flair_img_resized[:, :, slice_index]
+    mask = np.argmax(prediction_volume[:, :, slice_index, :], axis=-1)
 
-        # Convert the prediction slice to a color mask
-        mask = np.argmax(prediction_slice, axis=-1)
-        color_map = {
-            0: (0, 0, 0),        # Background
-            1: (255, 0, 0),      # Tumor region 1
-            2: (0, 255, 0),      # Tumor region 2
-            3: (0, 0, 255)       # Tumor region 3
-        }
-        segmented_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
-        for class_id, color in color_map.items():
-            segmented_img[mask == class_id] = color
+    # Apply color mapping for each class in mask
+    color_map = {
+        0: (0, 0, 0),        # Background
+        1: (255, 0, 0),      # Tumor region 1
+        2: (0, 255, 0),      # Tumor region 2
+        3: (0, 0, 255)       # Tumor region 3
+    }
+    segmented_img = np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8)
+    for class_id, color in color_map.items():
+        segmented_img[mask == class_id] = color
 
-        # Display the selected slice for each modality and the predicted mask
-        st.image(t1ce_slice, caption="T1ce Slice", use_column_width=True)
-        st.image(t2_slice, caption="T2 Slice", use_column_width=True)
-        st.image(flair_slice, caption="FLAIR Slice", use_column_width=True)
-        st.image(segmented_img, caption="Predicted Segmentation Mask", use_column_width=True)
-    except ValueError as e:
-        st.error(f"Error during prediction: {e}")
+    # Display each image
+    st.image(t1ce_slice, caption="T1ce Slice", use_column_width=True)
+    st.image(t2_slice, caption="T2 Slice", use_column_width=True)
+    st.image(flair_slice, caption="FLAIR Slice", use_column_width=True)
+    st.image(segmented_img, caption="Predicted Segmentation Mask", use_column_width=True)
+
 else:
     st.warning("Please upload all three modalities: T1ce, T2, and FLAIR.")
