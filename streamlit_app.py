@@ -3,74 +3,81 @@ import tensorflow as tf
 import numpy as np
 import nibabel as nib
 import cv2
-import keras.backend as K
+import requests
 import tempfile
 import os
 
-# Define custom metrics if needed
+# Function to download model from GitHub
+@st.cache_resource
+def load_model_from_github(github_url):
+    model_file = tempfile.NamedTemporaryFile(delete=False, suffix=".h5")
+    response = requests.get(github_url)
+    with open(model_file.name, "wb") as f:
+        f.write(response.content)
+    model = tf.keras.models.load_model(model_file.name, custom_objects={'dice_coef': dice_coef})
+    return model
+
+# Custom metric for model
 def dice_coef(y_true, y_pred, smooth=1):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+    y_true_f = tf.keras.backend.flatten(y_true)
+    y_pred_f = tf.keras.backend.flatten(y_pred)
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    return (2. * intersection + smooth) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + smooth)
 
-# Load model from uploaded file
-uploaded_model = st.file_uploader("Upload the model file (.h5)", type="h5")
-model = None
-if uploaded_model is not None:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as temp_model_file:
-        temp_model_file.write(uploaded_model.getbuffer())
-        model = tf.keras.models.load_model(temp_model_file.name, custom_objects={'dice_coef': dice_coef})
-    st.write("Model loaded successfully!")
-    st.write("Expected model input shape:", model.input_shape)  # Display the input shape for debugging
+# GitHub URL for the pre-trained model file (.h5)
+github_model_url = "https://github.com/Ehsan-Taheri/BrainTS2020-PreTrained-Unet/blob/main/brats20-unet.ipynb"  # Replace with your model URL
 
-st.title("Brain Tumor Segmentation with Multiple MRI Modalities")
+# Load the model
+st.write("Loading model from GitHub...")
+model = load_model_from_github(github_model_url)
+st.write("Model loaded successfully!")
+st.write("Expected model input shape:", model.input_shape)  # Display for debugging
 
-# File upload for the three modalities
-uploaded_t2 = st.file_uploader("Upload T2 MRI file (.nii)", type=["nii"])
-uploaded_t1ce = st.file_uploader("Upload T1ce MRI file (.nii)", type=["nii"])
-uploaded_flair = st.file_uploader("Upload FLAIR MRI file (.nii)", type=["nii"])
+# Title and instructions
+st.title("Brain Tumor Segmentation with MRI Modalities")
+st.write("Upload three MRI modalities: T1ce, T2, and FLAIR in NIfTI (.nii) format.")
+
+# File uploads
+uploaded_t1ce = st.file_uploader("Upload T1ce MRI file (.nii)", type="nii")
+uploaded_t2 = st.file_uploader("Upload T2 MRI file (.nii)", type="nii")
+uploaded_flair = st.file_uploader("Upload FLAIR MRI file (.nii)", type="nii")
 
 # Process files if all are uploaded
-if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
-    # Temporarily save the uploaded files
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_t2:
-        temp_t2.write(uploaded_t2.getbuffer())
-        t2_img = nib.load(temp_t2.name).get_fdata()
-
+if uploaded_t1ce and uploaded_t2 and uploaded_flair:
+    # Save and load each NIfTI image
     with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_t1ce:
         temp_t1ce.write(uploaded_t1ce.getbuffer())
         t1ce_img = nib.load(temp_t1ce.name).get_fdata()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_t2:
+        temp_t2.write(uploaded_t2.getbuffer())
+        t2_img = nib.load(temp_t2.name).get_fdata()
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_flair:
         temp_flair.write(uploaded_flair.getbuffer())
         flair_img = nib.load(temp_flair.name).get_fdata()
 
-    # Select a slice to display
-    slice_num = st.slider("Select MRI Slice", 0, t2_img.shape[2] - 1, t2_img.shape[2] // 2)
-    t2_slice = t2_img[:, :, slice_num]
+    # Select a slice to visualize
+    slice_num = st.slider("Select MRI Slice", 0, t1ce_img.shape[2] - 1, t1ce_img.shape[2] // 2)
     t1ce_slice = t1ce_img[:, :, slice_num]
+    t2_slice = t2_img[:, :, slice_num]
     flair_slice = flair_img[:, :, slice_num]
 
-    # Resize and stack slices for model input
-    IMG_SIZE = model.input_shape[1] if model.input_shape[1] is not None else 128  # Use model input shape if available
-    t2_slice_resized = cv2.resize(t2_slice, (IMG_SIZE, IMG_SIZE))
+    # Resize each slice to match model input
+    IMG_SIZE = model.input_shape[1] if model.input_shape[1] is not None else 128
     t1ce_slice_resized = cv2.resize(t1ce_slice, (IMG_SIZE, IMG_SIZE))
+    t2_slice_resized = cv2.resize(t2_slice, (IMG_SIZE, IMG_SIZE))
     flair_slice_resized = cv2.resize(flair_slice, (IMG_SIZE, IMG_SIZE))
-    input_img = np.stack([t2_slice_resized, t1ce_slice_resized, flair_slice_resized], axis=-1)
+
+    # Stack the slices to create a 3-channel input
+    input_img = np.stack([t1ce_slice_resized, t2_slice_resized, flair_slice_resized], axis=-1)
     input_img = np.expand_dims(input_img, axis=0)  # Add batch dimension
+    input_img = input_img / np.max(input_img)  # Normalize
 
-    # Normalize image
-    input_img = input_img / np.max(input_img)
-
-    # Verify and reshape if necessary
-    if input_img.shape[1:] != model.input_shape[1:]:
-        st.write(f"Reshaping input from {input_img.shape} to {model.input_shape}")
-        input_img = np.reshape(input_img, model.input_shape)
-
-    # Predict segmentation
+    # Prediction
+    st.write("Predicting segmentation mask...")
     prediction = model.predict(input_img)[0]
-    
+
     # Convert prediction to color mask
     mask = np.argmax(prediction, axis=-1)
     color_map = {
@@ -83,5 +90,7 @@ if uploaded_t2 and uploaded_t1ce and uploaded_flair and model:
     for class_id, color in color_map.items():
         segmented_img[mask == class_id] = color
 
-    # Display original and segmented images side-by-side
-    st.image([t2_slice, segmented_img], caption=["Original T2 Slice", "Predicted Segmentation"], use_column_width=True)
+    # Display the images
+    st.image([t1ce_slice, segmented_img], caption=["T1ce Slice", "Predicted Segmentation"], use_column_width=True)
+else:
+    st.warning("Please upload all three modalities: T1ce, T2, and FLAIR.")
