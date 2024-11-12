@@ -39,6 +39,7 @@ st.write("Upload three MRI modalities: T1ce, T2, and FLAIR in NIfTI (.nii) forma
 uploaded_t1ce = st.file_uploader("Upload T1ce MRI file (.nii)", type="nii")
 uploaded_t2 = st.file_uploader("Upload T2 MRI file (.nii)", type="nii")
 uploaded_flair = st.file_uploader("Upload FLAIR MRI file (.nii)", type="nii")
+uploaded_ground_truth = st.file_uploader("Upload Ground Truth Mask (optional, .nii)", type="nii")
 
 # Process files if all are uploaded
 if uploaded_t1ce and uploaded_t2 and uploaded_flair:
@@ -54,6 +55,14 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_flair:
         temp_flair.write(uploaded_flair.getbuffer())
         flair_img = nib.load(temp_flair.name).get_fdata()
+
+    # Load ground truth if provided
+    if uploaded_ground_truth:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as temp_gt:
+            temp_gt.write(uploaded_ground_truth.getbuffer())
+            ground_truth_img = nib.load(temp_gt.name).get_fdata()
+    else:
+        ground_truth_img = None
 
     # Resize volumes to (128, 128) per slice if necessary
     IMG_SIZE = 128
@@ -96,11 +105,18 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
     for class_id, color in color_map.items():
         segmented_img[mask == class_id] = color
 
-    # Display each image
-    st.image(t1ce_slice, caption="T1ce Slice", use_column_width=True)
-    st.image(t2_slice, caption="T2 Slice", use_column_width=True)
-    st.image(flair_slice, caption="FLAIR Slice", use_column_width=True)
-    st.image(segmented_img, caption="Predicted Segmentation Mask", use_column_width=True)
+    # Show images side-by-side in columns
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    col1.image(t1ce_slice, caption="T1ce Slice", use_column_width=True)
+    col2.image(t2_slice, caption="T2 Slice", use_column_width=True)
+    col3.image(flair_slice, caption="FLAIR Slice", use_column_width=True)
+    col4.image(segmented_img, caption="Predicted Mask", use_column_width=True)
+
+    # Display ground truth if available
+    if ground_truth_img is not None:
+        ground_truth_slice = np.clip(cv2.resize(ground_truth_img[:, :, slice_index], (IMG_SIZE, IMG_SIZE)) / np.max(ground_truth_img), 0, 1)
+        col5.image(ground_truth_slice, caption="Ground Truth Mask", use_column_width=True)
 
 else:
     st.warning("Please upload all three modalities: T1ce, T2, and FLAIR.")
