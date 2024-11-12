@@ -22,7 +22,7 @@ def load_model_from_drive(drive_url):
     return model
 
 # Google Drive link for the pre-trained model file (.h5)
-google_drive_url = "https://drive.google.com/uc?id=FILE_ID"  # Replace FILE_ID with your model's ID
+google_drive_url = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"  # Replace FILE_ID with your model's ID
 
 # Load the model
 st.write("Loading model from Google Drive...")
