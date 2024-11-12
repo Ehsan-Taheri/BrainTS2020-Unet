@@ -22,7 +22,7 @@ def load_model_from_drive(drive_url):
     return model
 
 # Google Drive link for the pre-trained model file (.h5)
-google_drive_url = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"  # Replace FILE_ID with your model's ID
+google_drive_url = "https://drive.google.com/uc?id=FILE_ID"  # Replace FILE_ID with your model's ID
 
 # Load the model
 st.write("Loading model from Google Drive...")
@@ -73,10 +73,19 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
 
     # Prediction
     st.write("Predicting segmentation mask...")
-    prediction = model.predict(input_img)[0]
+    prediction = model.predict(input_img)[0]  # Output should be (128, 128, 128, 4)
 
-    # Convert prediction to color mask
-    mask = np.argmax(prediction, axis=-1)
+    # Create a slider for selecting slices
+    slice_index = st.slider("Select Slice Number", 0, IMG_SIZE - 1, IMG_SIZE // 2)
+
+    # Extract the selected slice for each modality and prediction
+    t1ce_slice = t1ce_img_resized[:, :, slice_index]
+    t2_slice = t2_img_resized[:, :, slice_index]
+    flair_slice = flair_img_resized[:, :, slice_index]
+    prediction_slice = prediction[:, :, slice_index, :]
+
+    # Convert the prediction slice to a color mask
+    mask = np.argmax(prediction_slice, axis=-1)
     color_map = {
         0: (0, 0, 0),        # Background
         1: (255, 0, 0),      # Tumor region 1
@@ -87,7 +96,10 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
     for class_id, color in color_map.items():
         segmented_img[mask == class_id] = color
 
-    # Display the predicted segmentation mask
-    st.image(segmented_img, caption="Predicted Segmentation Mask (Center Slice)", use_column_width=True)
+    # Display the selected slice for each modality and the predicted mask
+    st.image(t1ce_slice, caption="T1ce Slice", use_column_width=True)
+    st.image(t2_slice, caption="T2 Slice", use_column_width=True)
+    st.image(flair_slice, caption="FLAIR Slice", use_column_width=True)
+    st.image(segmented_img, caption="Predicted Segmentation Mask", use_column_width=True)
 else:
     st.warning("Please upload all three modalities: T1ce, T2, and FLAIR.")
