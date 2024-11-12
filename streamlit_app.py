@@ -3,19 +3,10 @@ import tensorflow as tf
 import numpy as np
 import nibabel as nib
 import cv2
-import requests
 import tempfile
+import requests
+import gdown  # Make sure to add gdown to your requirements.txt
 import os
-
-# Function to download model from GitHub
-@st.cache_resource
-def load_model_from_github(github_url):
-    model_file = tempfile.NamedTemporaryFile(delete=False, suffix=".h5")
-    response = requests.get(github_url)
-    with open(model_file.name, "wb") as f:
-        f.write(response.content)
-    model = tf.keras.models.load_model(model_file.name, custom_objects={'dice_coef': dice_coef})
-    return model
 
 # Custom metric for model
 def dice_coef(y_true, y_pred, smooth=1):
@@ -24,14 +15,26 @@ def dice_coef(y_true, y_pred, smooth=1):
     intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + smooth)
 
-# GitHub URL for the pre-trained model file (.h5)
-github_model_url = "https://github.com/Ehsan-Taheri/BrainTS2020-PreTrained-Unet/blob/main/brats20-unet.ipynb"  # Replace with your model URL
+# Function to download model from Google Drive
+def load_model_from_drive(drive_url):
+    try:
+        model_file = tempfile.NamedTemporaryFile(delete=False, suffix=".h5")
+        gdown.download(drive_url, model_file.name, quiet=False)
+        model = tf.keras.models.load_model(model_file.name, custom_objects={'dice_coef': dice_coef})
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
+
+# Google Drive link for the pre-trained model file (.h5)
+google_drive_url = "https://drive.google.com/file/d/1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV/view?usp=drive_link"  # Replace FILE_ID with your model's ID
 
 # Load the model
-st.write("Loading model from GitHub...")
-model = load_model_from_github(github_model_url)
+st.write("Loading model from Google Drive...")
+model = load_model_from_drive(google_drive_url)
+if model is None:
+    st.stop()
 st.write("Model loaded successfully!")
-st.write("Expected model input shape:", model.input_shape)  # Display for debugging
 
 # Title and instructions
 st.title("Brain Tumor Segmentation with MRI Modalities")
