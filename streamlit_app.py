@@ -19,6 +19,46 @@ SEGMENT_CLASSES = {
     3: 'ENHANCING'
 }
 
+# Custom Metrics
+def dice_coef(y_true, y_pred, smooth=1.0):
+    class_num = 4
+    dice_scores = []
+    for i in range(class_num):
+        y_true_f = tf.keras.backend.flatten(y_true[:, :, :, i])
+        y_pred_f = tf.keras.backend.flatten(y_pred[:, :, :, i])
+        intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+        dice = (2. * intersection + smooth) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + smooth)
+        dice_scores.append(dice)
+    return tf.keras.backend.mean(tf.keras.backend.stack(dice_scores))
+
+def precision(y_true, y_pred):
+    true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + tf.keras.backend.epsilon())
+    return precision
+
+def sensitivity(y_true, y_pred):
+    true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
+    possible_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true, 0, 1)))
+    return true_positives / (possible_positives + tf.keras.backend.epsilon())
+
+def specificity(y_true, y_pred):
+    true_negatives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip((1 - y_true) * (1 - y_pred), 0, 1)))
+    possible_negatives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(1 - y_true, 0, 1)))
+    return true_negatives / (possible_negatives + tf.keras.backend.epsilon())
+
+def dice_coef_necrotic(y_true, y_pred, epsilon=1e-6):
+    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 1] * y_pred[:, :, :, 1]))
+    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 1])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 1])) + epsilon)
+
+def dice_coef_edema(y_true, y_pred, epsilon=1e-6):
+    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 2] * y_pred[:, :, :, 2]))
+    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 2])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 2])) + epsilon)
+
+def dice_coef_enhancing(y_true, y_pred, epsilon=1e-6):
+    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 3] * y_pred[:, :, :, 3]))
+    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 3])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 3])) + epsilon)
+
 # Functions
 def load_model_from_gdrive(url, destination):
     try:
@@ -134,43 +174,3 @@ if flair_file is not None and t1ce_file is not None:
             gt = np.zeros_like(flair)  # Assuming no ground truth is available for prediction
             fig = plot_predictions(flair, gt, p)
             st.pyplot(fig)
-
-# Custom Functions for Metrics
-def dice_coef(y_true, y_pred, smooth=1.0):
-    class_num = 4
-    dice_scores = []
-    for i in range(class_num):
-        y_true_f = tf.keras.backend.flatten(y_true[:, :, :, i])
-        y_pred_f = tf.keras.backend.flatten(y_pred[:, :, :, i])
-        intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
-        dice = (2. * intersection + smooth) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + smooth)
-        dice_scores.append(dice)
-    return tf.keras.backend.mean(tf.keras.backend.stack(dice_scores))
-
-def precision(y_true, y_pred):
-    true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
-    predicted_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_pred, 0, 1)))
-    precision = true_positives / (predicted_positives + tf.keras.backend.epsilon())
-    return precision
-
-def sensitivity(y_true, y_pred):
-    true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
-    possible_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true, 0, 1)))
-    return true_positives / (possible_positives + tf.keras.backend.epsilon())
-
-def specificity(y_true, y_pred):
-    true_negatives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip((1 - y_true) * (1 - y_pred), 0, 1)))
-    possible_negatives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(1 - y_true, 0, 1)))
-    return true_negatives / (possible_negatives + tf.keras.backend.epsilon())
-
-def dice_coef_necrotic(y_true, y_pred, epsilon=1e-6):
-    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 1] * y_pred[:, :, :, 1]))
-    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 1])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 1])) + epsilon)
-
-def dice_coef_edema(y_true, y_pred, epsilon=1e-6):
-    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 2] * y_pred[:, :, :, 2]))
-    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 2])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 2])) + epsilon)
-
-def dice_coef_enhancing(y_true, y_pred, epsilon=1e-6):
-    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 3] * y_pred[:, :, :, 3]))
-    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 3])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 3])) + epsilon)
