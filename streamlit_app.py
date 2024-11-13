@@ -28,20 +28,19 @@ def preprocess_image(img):
     normalized_img = (resized_img - np.min(resized_img)) / (np.max(resized_img) - np.min(resized_img))
     return normalized_img
 
-# Main code
-st.title("Brain Tumor Segmentation with MRI Images")
-
-# Upload NIfTI files
-t1ce_file = st.file_uploader("Upload T1ce MRI file", type=["nii", "nii.gz"])
-t2_file = st.file_uploader("Upload T2 MRI file", type=["nii", "nii.gz"])
-flair_file = st.file_uploader("Upload FLAIR MRI file (optional for reference)", type=["nii", "nii.gz"])
-gt_file = st.file_uploader("Upload Ground Truth Mask (optional)", type=["nii", "nii.gz"])
-
+# Function to load NIfTI files from uploaded files
 def load_nii_file(uploaded_file):
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(uploaded_file.read())
         nii_img = nib.load(tmp_file.name).get_fdata()
     return nii_img
+
+# Main code
+st.title("Brain Tumor Segmentation with MRI Images")
+
+# Upload T1ce and T2 MRI files
+t1ce_file = st.file_uploader("Upload T1ce MRI file", type=["nii", "nii.gz"])
+t2_file = st.file_uploader("Upload T2 MRI file", type=["nii", "nii.gz"])
 
 if t1ce_file and t2_file:
     # Load images
@@ -66,30 +65,16 @@ if t1ce_file and t2_file:
         prediction_slice = model.predict(input_slice)[0]  # Predict
         prediction_volume[:, :, i, :] = prediction_slice  # Store
 
-    # Optional ground truth if provided
-    if gt_file:
-        gt_img = load_nii_file(gt_file)
-        gt_img_resized = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in gt_img])
-
     # Add a slider to navigate through slices
     slice_index = st.slider("Select Slice", 0, combined_slices.shape[2] - 1, 0)
     
     # Display images
     st.subheader("MRI Slices and Predicted Tumor Segmentation")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     col1.image(t1ce_img_resized[:, :, slice_index], caption="T1ce Slice", use_column_width=True)
     col2.image(t2_img_resized[:, :, slice_index], caption="T2 Slice", use_column_width=True)
-    
-    if flair_file:
-        flair_img = load_nii_file(flair_file)
-        flair_img_resized = preprocess_image(flair_img)
-        col3.image(flair_img_resized[:, :, slice_index], caption="FLAIR Slice", use_column_width=True)
-    
-    col4.image(prediction_volume[:, :, slice_index, :], caption="Predicted Segmentation", use_column_width=True)
-    
-    if gt_file:
-        st.image(gt_img_resized[:, :, slice_index], caption="Ground Truth Mask", use_column_width=True)
+    col3.image(prediction_volume[:, :, slice_index, :], caption="Predicted Segmentation", use_column_width=True)
     
     st.success("Segmentation Completed!")
 else:
