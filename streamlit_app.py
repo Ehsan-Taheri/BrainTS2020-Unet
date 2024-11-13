@@ -135,8 +135,8 @@ else:
     st.error("Model not found. Please ensure the model is downloaded correctly.")
 
 # Upload files
-flair_file = st.file_uploader("Upload FLAIR NIfTI file", type="nii.gz")
-t1ce_file = st.file_uploader("Upload T1CE NIfTI file", type="nii.gz")
+flair_file = st.file_uploader("Upload FLAIR NIfTI file", type=["nii"])
+t1ce_file = st.file_uploader("Upload T1CE NIfTI file", type=["nii"])
 
 if flair_file is not None and t1ce_file is not None:
     # Save uploaded files to a temporary location
