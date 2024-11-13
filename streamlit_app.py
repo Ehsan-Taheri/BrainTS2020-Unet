@@ -3,8 +3,7 @@ import numpy as np
 import nibabel as nib
 import tensorflow as tf
 import cv2
-import requests
-from io import BytesIO
+import tempfile
 from google_drive_downloader import GoogleDriveDownloader as gdd
 
 # Constants
@@ -38,10 +37,16 @@ t2_file = st.file_uploader("Upload T2 MRI file", type=["nii", "nii.gz"])
 flair_file = st.file_uploader("Upload FLAIR MRI file (optional for reference)", type=["nii", "nii.gz"])
 gt_file = st.file_uploader("Upload Ground Truth Mask (optional)", type=["nii", "nii.gz"])
 
+def load_nii_file(uploaded_file):
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        nii_img = nib.load(tmp_file.name).get_fdata()
+    return nii_img
+
 if t1ce_file and t2_file:
     # Load images
-    t1ce_img = nib.load(t1ce_file).get_fdata()
-    t2_img = nib.load(t2_file).get_fdata()
+    t1ce_img = load_nii_file(t1ce_file)
+    t2_img = load_nii_file(t2_file)
     
     # Preprocess images to required dimensions
     t1ce_img_resized = preprocess_image(t1ce_img)
@@ -63,7 +68,7 @@ if t1ce_file and t2_file:
 
     # Optional ground truth if provided
     if gt_file:
-        gt_img = nib.load(gt_file).get_fdata()
+        gt_img = load_nii_file(gt_file)
         gt_img_resized = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in gt_img])
 
     # Add a slider to navigate through slices
@@ -77,7 +82,7 @@ if t1ce_file and t2_file:
     col2.image(t2_img_resized[:, :, slice_index], caption="T2 Slice", use_column_width=True)
     
     if flair_file:
-        flair_img = nib.load(flair_file).get_fdata()
+        flair_img = load_nii_file(flair_file)
         flair_img_resized = preprocess_image(flair_img)
         col3.image(flair_img_resized[:, :, slice_index], caption="FLAIR Slice", use_column_width=True)
     
