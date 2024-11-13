@@ -1,83 +1,155 @@
 import streamlit as st
 import numpy as np
 import nibabel as nib
-import tensorflow as tf
 import cv2
-import tempfile
-from google_drive_downloader import GoogleDriveDownloader as gdd
+import os
+import gdown
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
+import matplotlib.pyplot as plt
 
 # Constants
 IMG_SIZE = 128
-MODEL_URL = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"
+VOLUME_SLICES = 100
+VOLUME_START_AT = 22
+SEGMENT_CLASSES = {
+    0: 'NOT tumor',
+    1: 'NECROTIC/CORE',
+    2: 'EDEMA',
+    3: 'ENHANCING'
+}
 
-# Load model function
-@st.cache_resource
-def load_model():
-    gdd.download_file_from_google_drive(file_id="1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV", dest_path="./model.h5", unzip=False)
-    model = tf.keras.models.load_model("./model.h5", custom_objects={'dice_coef': dice_coef})
-    return model
+# Functions
+def load_model_from_gdrive(file_id, destination):
+    url = f"https://drive.google.com/uc?id={file_id}"
+    gdown.download(url, destination, quiet=False)
 
-# Dice coefficient for evaluation
-def dice_coef(y_true, y_pred, smooth=1):
-    intersection = tf.reduce_sum(y_true * y_pred)
-    return (2. * intersection + smooth) / (tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) + smooth)
+def preprocess_image(flair, t1ce):
+    X = np.zeros((VOLUME_SLICES, IMG_SIZE, IMG_SIZE, 2))
+    for j in range(VOLUME_SLICES):
+        X[j, :, :, 0] = cv2.resize(flair[:, :, j + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE))
+        X[j, :, :, 1] = cv2.resize(t1ce[:, :, j + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE))
+    return X
 
-# Resize and normalize function
-def preprocess_image(img):
-    # Resize each slice to (128, 128) and normalize
-    resized_img = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in img])  # Uniform resizing
-    normalized_img = (resized_img - np.min(resized_img)) / (np.max(resized_img) - np.min(resized_img))
-    return normalized_img
+def predict(model, X):
+    return model.predict(X / np.max(X), verbose=1)
 
-# Function to load NIfTI files from uploaded files
-def load_nii_file(uploaded_file):
-    suffix = ".nii" if uploaded_file.name.endswith(".nii") else ".nii.gz"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        nii_img = nib.load(tmp_file.name).get_fdata()
-    return nii_img
+def plot_predictions(flair, gt, p, start_slice=60):
+    core = p[:, :, :, 1]
+    edema = p[:, :, :, 2]
+    enhancing = p[:, :, :, 3]
 
-# Main code
-st.title("Brain Tumor Segmentation with MRI Images")
+    plt.figure(figsize=(18, 50))
+    f, axarr = plt.subplots(1, 6, figsize=(18, 50))
 
-# Upload T1ce and T2 MRI files
-t1ce_file = st.file_uploader("Upload T1ce MRI file", type=["nii", "nii.gz"])
-t2_file = st.file_uploader("Upload T2 MRI file", type=["nii", "nii.gz"])
+    for i in range(6):
+        axarr[i].imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray", interpolation='none')
 
-if t1ce_file and t2_file:
-    # Load images
-    t1ce_img = load_nii_file(t1ce_file)
-    t2_img = load_nii_file(t2_file)
+    axarr <sup> </sup>.imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
+    axarr <sup> </sup>.title.set_text('Original image flair')
+    curr_gt = cv2.resize(gt[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
+    axarr[1].imshow(curr_gt, cmap="Reds", interpolation='none', alpha=0.3)
+    axarr[1].title.set_text('Ground truth')
+    axarr[2].imshow(p[start_slice, :, :, 1:4], cmap="Reds", interpolation='none', alpha=0.3)
+    axarr[2].title.set_text('all classes')
+    axarr[3].imshow(edema[start_slice, :, :], cmap="OrRd", interpolation='none', alpha=0.3)
+    axarr[3].title.set_text(f'{SEGMENT_CLASSES[1]} predicted')
+    axarr[4].imshow(core[start_slice, :, :], cmap="OrRd", interpolation='none', alpha=0.3)
+    axarr[4].title.set_text(f'{SEGMENT_CLASSES[2]} predicted')
+    axarr[5].imshow(enhancing[start_slice, :, :], cmap="OrRd", interpolation='none', alpha=0.3)
+    axarr[5].title.set_text(f'{SEGMENT_CLASSES[3]} predicted')
+    return f
+
+# Load Model
+st.title("3D Medical Image Segmentation")
+st.write("Upload your FLAIR and T1CE NIfTI files to predict tumor segments.")
+
+# Google Drive File ID for the model
+model_file_id = 'YOUR_GOOGLE_DRIVE_FILE_ID'  # Replace with your actual Google Drive file ID
+model_destination = 'model_per_class.h5'
+
+# Download model from Google Drive
+if not os.path.exists(model_destination):
+    load_model_from_gdrive(model_file_id, model_destination)
+
+# Load the model
+model = load_model(model_destination, custom_objects={
+    "dice_coef": dice_coef,
+    "precision": precision,
+    "sensitivity": sensitivity,
+    "specificity": specificity,
+    "dice_coef_necrotic": dice_coef_necrotic,
+    "dice_coef_edema": dice_coef_edema,
+    "dice_coef_enhancing": dice_coef_enhancing
+}, compile=False)
+
+# Upload files
+flair_file = st.file_uploader("Upload FLAIR NIfTI file", type="nii.gz")
+t1ce_file = st.file_uploader("Upload T1CE NIfTI file", type="nii.gz")
+
+if flair_file is not None and t1ce_file is not None:
+    # Save uploaded files to a temporary location
+    flair_path = os.path.join("temp", flair_file.name)
+    t1ce_path = os.path.join("temp", t1ce_file.name)
     
-    # Preprocess images to required dimensions
-    t1ce_img_resized = preprocess_image(t1ce_img)
-    t2_img_resized = preprocess_image(t2_img)
+    os.makedirs("temp", exist_ok=True)
+    with open(flair_path, "wb") as f:
+        f.write(flair_file.getbuffer())
+    with open(t1ce_path, "wb") as f:
+        f.write(t1ce_file.getbuffer())
     
-    # Stack T1ce and T2 images along the last dimension to form input of shape (128, 128, num_slices, 2)
-    combined_slices = np.stack([t1ce_img_resized, t2_img_resized], axis=-1)  # Shape: (128, 128, num_slices, 2)
-    model = load_model()
-
-    # Prediction for each slice
-    prediction_volume = np.zeros((IMG_SIZE, IMG_SIZE, combined_slices.shape[2], 4))  # Output volume
-
-    for i in range(combined_slices.shape[2]):
-        input_slice = combined_slices[:, :, i, :]  # Shape: (128, 128, 2)
-        input_slice = np.expand_dims(input_slice, axis=0)  # Add batch dimension to make (1, 128, 128, 2)
-        
-        prediction_slice = model.predict(input_slice)[0]  # Predict
-        prediction_volume[:, :, i, :] = prediction_slice  # Store
-
-    # Add a slider to navigate through slices
-    slice_index = st.slider("Select Slice", 0, combined_slices.shape[2] - 1, 0)
+    # Load NIfTI files
+    flair = nib.load(flair_path).get_fdata()
+    t1ce = nib.load(t1ce_path).get_fdata()
     
-    # Display images
-    st.subheader("MRI Slices and Predicted Tumor Segmentation")
-
-    col1, col2, col3 = st.columns(3)
-    col1.image(t1ce_img_resized[:, :, slice_index], caption="T1ce Slice", use_column_width=True)
-    col2.image(t2_img_resized[:, :, slice_index], caption="T2 Slice", use_column_width=True)
-    col3.image(prediction_volume[:, :, slice_index, :], caption="Predicted Segmentation", use_column_width=True)
+    # Preprocess images
+    X = preprocess_image(flair, t1ce)
     
-    st.success("Segmentation Completed!")
-else:
-    st.warning("Please upload both T1ce and T2 MRI images.")
+    # Make predictions
+    p = predict(model, X)
+    
+    # Plot predictions
+    gt = np.zeros_like(flair)  # Assuming no ground truth is available for prediction
+    fig = plot_predictions(flair, gt, p)
+    st.pyplot(fig)
+
+# Custom Functions for Metrics
+def dice_coef(y_true, y_pred, smooth=1.0):
+    class_num = 4
+    dice_scores = []
+    for i in range(class_num):
+        y_true_f = tf.keras.backend.flatten(y_true[:, :, :, i])
+        y_pred_f = tf.keras.backend.flatten(y_pred[:, :, :, i])
+        intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+        dice = (2. * intersection + smooth) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + smooth)
+        dice_scores.append(dice)
+    return tf.keras.backend.mean(tf.keras.backend.stack(dice_scores))
+
+def precision(y_true, y_pred):
+    true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + tf.keras.backend.epsilon())
+    return precision
+
+def sensitivity(y_true, y_pred):
+    true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
+    possible_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true, 0, 1)))
+    return true_positives / (possible_positives + tf.keras.backend.epsilon())
+
+def specificity(y_true, y_pred):
+    true_negatives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip((1 - y_true) * (1 - y_pred), 0, 1)))
+    possible_negatives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(1 - y_true, 0, 1)))
+    return true_negatives / (possible_negatives + tf.keras.backend.epsilon())
+
+def dice_coef_necrotic(y_true, y_pred, epsilon=1e-6):
+    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 1] * y_pred[:, :, :, 1]))
+    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 1])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 1])) + epsilon)
+
+def dice_coef_edema(y_true, y_pred, epsilon=1e-6):
+    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 2] * y_pred[:, :, :, 2]))
+    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 2])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 2])) + epsilon)
+
+def dice_coef_enhancing(y_true, y_pred, epsilon=1e-6):
+    intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 3] * y_pred[:, :, :, 3]))
+    return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 3])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 3])) + epsilon)
