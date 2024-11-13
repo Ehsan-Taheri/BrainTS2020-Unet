@@ -79,14 +79,20 @@ if uploaded_t1ce and uploaded_t2 and uploaded_flair:
     # Slider to select slice index
     slice_index = st.slider("Select Slice Number", 0, combined_slices.shape[2] - 1, combined_slices.shape[2] // 2)
 
-    # Process each slice independently for prediction
+    # Choose the first two modalities (T1ce and T2)
+    combined_slices = np.stack([t1ce_img_resized, t2_img_resized], axis=-1)  # Shape: (128, 128, num_slices, 2)
+
+    # Predict each slice independently with correct input shape
+    prediction_volume = np.zeros((IMG_SIZE, IMG_SIZE, combined_slices.shape[2], 4))  # Store all predicted slices
+
     for i in range(combined_slices.shape[2]):
-        input_slice = combined_slices[:, :, i, :2]  # Select first two modalities per model's input expectation
-        input_slice = np.expand_dims(input_slice, axis=0)  # Add batch dimension
+        input_slice = combined_slices[:, :, i, :]  # Shape: (128, 128, 2)
+        input_slice = np.expand_dims(input_slice, axis=0)  # Add batch dimension to make (1, 128, 128, 2)
 
         # Predict segmentation mask for the slice
-        prediction_slice = model.predict(input_slice)[0]
-        prediction_volume[:, :, i, :] = prediction_slice  # Store prediction
+        prediction_slice = model.predict(input_slice)[0]  # Remove batch dimension after prediction
+        prediction_volume[:, :, i, :] = prediction_slice  # Store in 3D prediction volume
+
 
     # Show the selected slice for T1ce, T2, FLAIR, and prediction
     t1ce_slice = np.clip(t1ce_img_resized[:, :, slice_index] / np.max(t1ce_img_resized), 0, 1)
