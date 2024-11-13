@@ -6,5 +6,5 @@ streamlit
 keras
 gdown
 GoogleDriveDownloader
-sklearn.preprocessing
+scikit-learn
 MinMaxScaler
