@@ -66,8 +66,8 @@ st.title("3D Medical Image Segmentation")
 st.write("Upload your FLAIR and T1CE NIfTI files to predict tumor segments.")
 
 # Google Drive File ID for the model
-model_file_id = 'YOUR_GOOGLE_DRIVE_FILE_ID'  # Replace with your actual Google Drive file ID
-model_destination = 'model_per_class.h5'
+model_file_id = '1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV'  # Replace with your actual Google Drive file ID
+model_destination = 'trained_brain_mri_model.h5'
 
 # Download model from Google Drive
 if not os.path.exists(model_destination):
