@@ -30,7 +30,8 @@ def preprocess_image(img):
 
 # Function to load NIfTI files from uploaded files
 def load_nii_file(uploaded_file):
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+    suffix = ".nii" if uploaded_file.name.endswith(".nii") else ".nii.gz"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
         tmp_file.write(uploaded_file.read())
         nii_img = nib.load(tmp_file.name).get_fdata()
     return nii_img
