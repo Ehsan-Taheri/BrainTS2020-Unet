@@ -88,8 +88,8 @@ def plot_predictions(flair, gt, p, start_slice=60):
     for i in range(6):
         axarr[i].imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray", interpolation='none')
 
-    axarr.imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
-    axarr.title.set_text('Original image flair')
+    axarr <sup> </sup>.imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
+    axarr <sup> </sup>.title.set_text('Original image flair')
     curr_gt = cv2.resize(gt[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
     axarr[1].imshow(curr_gt, cmap="Reds", interpolation='none', alpha=0.3)
     axarr[1].title.set_text('Ground truth')
