@@ -6,7 +6,6 @@ import os
 import gdown
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 
 # Constants
@@ -23,7 +22,11 @@ SEGMENT_CLASSES = {
 # Functions
 def load_model_from_gdrive(file_id, destination):
     url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, destination, quiet=False)
+    try:
+        gdown.download(url, destination, quiet=False)
+        st.success(f"Model downloaded successfully to {destination}")
+    except Exception as e:
+        st.error(f"Failed to download model: {e}")
 
 def preprocess_image(flair, t1ce):
     X = np.zeros((VOLUME_SLICES, IMG_SIZE, IMG_SIZE, 2))
@@ -46,8 +49,8 @@ def plot_predictions(flair, gt, p, start_slice=60):
     for i in range(6):
         axarr[i].imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray", interpolation='none')
 
-    axarr.imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
-    axarr.title.set_text('Original image flair')
+    axarr <sup> </sup>.imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
+    axarr <sup> </sup>.title.set_text('Original image flair')
     curr_gt = cv2.resize(gt[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
     axarr[1].imshow(curr_gt, cmap="Reds", interpolation='none', alpha=0.3)
     axarr[1].title.set_text('Ground truth')
@@ -67,22 +70,30 @@ st.write("Upload your FLAIR and T1CE NIfTI files to predict tumor segments.")
 
 # Google Drive File ID for the model
 model_file_id = '1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV/view?usp=drive_link'  # Replace with your actual Google Drive file ID
-model_destination = 'trained_brain_mri_model.h5.h5'
+model_destination = 'trained_brain_mri_model.h5'
 
 # Download model from Google Drive
 if not os.path.exists(model_destination):
+    st.info(f"Model not found. Downloading from Google Drive...")
     load_model_from_gdrive(model_file_id, model_destination)
 
 # Load the model
-model = load_model(model_destination, custom_objects={
-    "dice_coef": dice_coef,
-    "precision": precision,
-    "sensitivity": sensitivity,
-    "specificity": specificity,
-    "dice_coef_necrotic": dice_coef_necrotic,
-    "dice_coef_edema": dice_coef_edema,
-    "dice_coef_enhancing": dice_coef_enhancing
-}, compile=False)
+if os.path.exists(model_destination):
+    try:
+        model = load_model(model_destination, custom_objects={
+            "dice_coef": dice_coef,
+            "precision": precision,
+            "sensitivity": sensitivity,
+            "specificity": specificity,
+            "dice_coef_necrotic": dice_coef_necrotic,
+            "dice_coef_edema": dice_coef_edema,
+            "dice_coef_enhancing": dice_coef_enhancing
+        }, compile=False)
+        st.success("Model loaded successfully!")
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+else:
+    st.error("Model not found. Please ensure the model is downloaded correctly.")
 
 # Upload files
 flair_file = st.file_uploader("Upload FLAIR NIfTI file", type="nii.gz")
@@ -100,19 +111,30 @@ if flair_file is not None and t1ce_file is not None:
         f.write(t1ce_file.getbuffer())
     
     # Load NIfTI files
-    flair = nib.load(flair_path).get_fdata()
-    t1ce = nib.load(t1ce_path).get_fdata()
-    
-    # Preprocess images
-    X = preprocess_image(flair, t1ce)
-    
-    # Make predictions
-    p = predict(model, X)
-    
-    # Plot predictions
-    gt = np.zeros_like(flair)  # Assuming no ground truth is available for prediction
-    fig = plot_predictions(flair, gt, p)
-    st.pyplot(fig)
+    try:
+        flair = nib.load(flair_path).get_fdata()
+        t1ce = nib.load(t1ce_path).get_fdata()
+    except Exception as e:
+        st.error(f"Failed to load NIfTI files: {e}")
+        flair = None
+        t1ce = None
+
+    if flair is not None and t1ce is not None:
+        # Preprocess images
+        X = preprocess_image(flair, t1ce)
+        
+        # Make predictions
+        try:
+            p = predict(model, X)
+        except Exception as e:
+            st.error(f"Failed to make predictions: {e}")
+            p = None
+
+        if p is not None:
+            # Plot predictions
+            gt = np.zeros_like(flair)  # Assuming no ground truth is available for prediction
+            fig = plot_predictions(flair, gt, p)
+            st.pyplot(fig)
 
 # Custom Functions for Metrics
 def dice_coef(y_true, y_pred, smooth=1.0):
