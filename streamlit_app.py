@@ -8,7 +8,7 @@ from google_drive_downloader import GoogleDriveDownloader as gdd
 
 # Constants
 IMG_SIZE = 128
-MODEL_URL = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"  # Link to your model file
+MODEL_URL = "https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV"
 
 # Load model function
 @st.cache_resource
@@ -24,7 +24,7 @@ def dice_coef(y_true, y_pred, smooth=1):
 
 # Resize and normalize function
 def preprocess_image(img):
-    resized_img = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in img])  # Resize each slice
+    resized_img = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in img])  # Ensure uniform resizing
     normalized_img = (resized_img - np.min(resized_img)) / (np.max(resized_img) - np.min(resized_img))
     return normalized_img
 
