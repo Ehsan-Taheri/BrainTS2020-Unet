@@ -155,7 +155,7 @@ if flair_file is not None and t1ce_file is not None:
     # Save uploaded files to a temporary location
     flair_path = os.path.join("temp", flair_file.name)
     t1ce_path = os.path.join("temp", t1ce_file.name)
-     os.makedirs("temp", exist_ok=True)
+    os.makedirs("temp", exist_ok=True)
     with open(flair_path, "wb") as f:
         f.write(flair_file.getbuffer())
     with open(t1ce_path, "wb") as f:
