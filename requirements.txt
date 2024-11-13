@@ -6,3 +6,5 @@ streamlit
 keras
 gdown
 GoogleDriveDownloader
+sklearn.preprocessing
+MinMaxScaler
