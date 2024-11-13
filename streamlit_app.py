@@ -18,13 +18,8 @@ SEGMENT_CLASSES = {
     2: 'EDEMA',
     3: 'ENHANCING'
 }
-COLORS = {
-    1: "Oranges",
-    2: "Blues",
-    3: "Purples"
-}
 
-# Define custom metrics
+# Custom Metrics
 def dice_coef(y_true, y_pred, smooth=1.0):
     class_num = 4
     dice_scores = []
@@ -64,7 +59,6 @@ def dice_coef_enhancing(y_true, y_pred, epsilon=1e-6):
     intersection = tf.keras.backend.sum(tf.keras.backend.abs(y_true[:, :, :, 3] * y_pred[:, :, :, 3]))
     return (2. * intersection) / (tf.keras.backend.sum(tf.keras.backend.square(y_true[:, :, :, 3])) + tf.keras.backend.sum(tf.keras.backend.square(y_pred[:, :, :, 3])) + epsilon)
 
-
 # Functions
 def load_model_from_gdrive(url, destination):
     try:
@@ -83,36 +77,30 @@ def preprocess_image(flair, t1ce):
 def predict(model, X):
     return model.predict(X / np.max(X), verbose=1)
 
-
-def plot_predictions(flair, t1ce, p, slice_num):
+def plot_predictions(flair, gt, p, start_slice=60):
     core = p[:, :, :, 1]
     edema = p[:, :, :, 2]
     enhancing = p[:, :, :, 3]
 
-    plt.figure(figsize=(24, 12))  # Larger figure for bigger images
-    f, axarr = plt.subplots(1, 5, figsize=(24, 12))  # Adjust layout for 5 images
+    plt.figure(figsize=(18, 50))
+    f, axarr = plt.subplots(1, 6, figsize=(18, 50))
 
-    # Original flair image
-    axarr[0].imshow(cv2.resize(flair[:, :, slice_num + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
-    axarr[0].title.set_text('FLAIR Image')
-    
-    # T1CE image
-    axarr[1].imshow(cv2.resize(t1ce[:, :, slice_num + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
-    axarr[1].title.set_text('T1CE Image')
+    for i in range(6):
+        axarr[i].imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray", interpolation='none')
 
-    # All classes overlaid
-    axarr[2].imshow(edema[slice_num, :, :], cmap=COLORS[2], interpolation='none', alpha=0.3)
-    axarr[2].imshow(core[slice_num, :, :], cmap=COLORS[1], interpolation='none', alpha=0.3)
-    axarr[2].imshow(enhancing[slice_num, :, :], cmap=COLORS[3], interpolation='none', alpha=0.3)
-    axarr[2].title.set_text('All Classes')
-
-    # Individual class predictions
-    axarr[3].imshow(edema[slice_num, :, :], cmap=COLORS[2], interpolation='none', alpha=0.3)
-    axarr[3].title.set_text(f'{SEGMENT_CLASSES[2]} Prediction')
-
-    axarr[4].imshow(core[slice_num, :, :], cmap=COLORS[1], interpolation='none', alpha=0.3)
-    axarr[4].title.set_text(f'{SEGMENT_CLASSES[1]} Prediction')
-
+    axarr[0].imshow(cv2.resize(flair[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE)), cmap="gray")
+    axarr[0].title.set_text('Original image flair')
+    curr_gt = cv2.resize(gt[:, :, start_slice + VOLUME_START_AT], (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_NEAREST)
+    axarr[1].imshow(curr_gt, cmap="Reds", interpolation='none', alpha=0.3)
+    axarr[1].title.set_text('Ground truth')
+    axarr[2].imshow(p[start_slice, :, :, 1:4], cmap="Reds", interpolation='none', alpha=0.3)
+    axarr[2].title.set_text('all classes')
+    axarr[3].imshow(edema[start_slice, :, :], cmap="OrRd", interpolation='none', alpha=0.3)
+    axarr[3].title.set_text(f'{SEGMENT_CLASSES[1]} predicted')
+    axarr[4].imshow(core[start_slice, :, :], cmap="OrRd", interpolation='none', alpha=0.3)
+    axarr[4].title.set_text(f'{SEGMENT_CLASSES[2]} predicted')
+    axarr[5].imshow(enhancing[start_slice, :, :], cmap="OrRd", interpolation='none', alpha=0.3)
+    axarr[5].title.set_text(f'{SEGMENT_CLASSES[3]} predicted')
     return f
 
 # Load Model
@@ -146,7 +134,6 @@ if os.path.exists(model_destination):
 else:
     st.error("Model not found. Please ensure the model is downloaded correctly.")
 
-
 # Upload files
 flair_file = st.file_uploader("Upload FLAIR NIfTI file", type=["nii"])
 t1ce_file = st.file_uploader("Upload T1CE NIfTI file", type=["nii"])
@@ -155,12 +142,13 @@ if flair_file is not None and t1ce_file is not None:
     # Save uploaded files to a temporary location
     flair_path = os.path.join("temp", flair_file.name)
     t1ce_path = os.path.join("temp", t1ce_file.name)
+    
     os.makedirs("temp", exist_ok=True)
     with open(flair_path, "wb") as f:
         f.write(flair_file.getbuffer())
     with open(t1ce_path, "wb") as f:
         f.write(t1ce_file.getbuffer())
-        
+    
     # Load NIfTI files
     try:
         flair = nib.load(flair_path).get_fdata()
@@ -182,9 +170,7 @@ if flair_file is not None and t1ce_file is not None:
             p = None
 
         if p is not None:
-            # Select slice with a slider
-            slice_num = st.slider("Select Slice", 0, VOLUME_SLICES - 1, 60)  # Default at 60
-
-            # Plot predictions with modified layout
-            fig = plot_predictions(flair, t1ce, p, slice_num)
+            # Plot predictions
+            gt = np.zeros_like(flair)  # Assuming no ground truth is available for prediction
+            fig = plot_predictions(flair, gt, p)
             st.pyplot(fig)
