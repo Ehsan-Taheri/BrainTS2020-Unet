@@ -20,8 +20,7 @@ SEGMENT_CLASSES = {
 }
 
 # Functions
-def load_model_from_gdrive(file_id, destination):
-    url = f"https://drive.google.com/uc?id={file_id}"
+def load_model_from_gdrive(url, destination):
     try:
         gdown.download(url, destination, quiet=False)
         st.success(f"Model downloaded successfully to {destination}")
@@ -68,14 +67,14 @@ def plot_predictions(flair, gt, p, start_slice=60):
 st.title("3D Medical Image Segmentation")
 st.write("Upload your FLAIR and T1CE NIfTI files to predict tumor segments.")
 
-# Google Drive File ID for the model
-model_file_id = '1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV/view?usp=drive_link'  # Replace with your actual Google Drive file ID
+# Google Drive URL for the model
+model_url = 'https://drive.google.com/uc?id=1Hrgh_qnd4Ly1HvPH7d-2tluf3Y0lgCTV'
 model_destination = 'trained_brain_mri_model.h5'
 
 # Download model from Google Drive
 if not os.path.exists(model_destination):
     st.info(f"Model not found. Downloading from Google Drive...")
-    load_model_from_gdrive(model_file_id, model_destination)
+    load_model_from_gdrive(model_url, model_destination)
 
 # Load the model
 if os.path.exists(model_destination):
