@@ -5,4 +5,4 @@ numpy
 streamlit
 keras
 gdown
-google_drive_downloader
+GoogleDriveDownloader
