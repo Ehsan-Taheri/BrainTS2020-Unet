@@ -24,7 +24,8 @@ def dice_coef(y_true, y_pred, smooth=1):
 
 # Resize and normalize function
 def preprocess_image(img):
-    resized_img = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in img])  # Ensure uniform resizing
+    # Resize each slice to (128, 128) and normalize
+    resized_img = np.array([cv2.resize(slice, (IMG_SIZE, IMG_SIZE)) for slice in img])  # Uniform resizing
     normalized_img = (resized_img - np.min(resized_img)) / (np.max(resized_img) - np.min(resized_img))
     return normalized_img
 
