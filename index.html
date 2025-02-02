@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF.js Example</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <h1>My PDF Document</h1>
+    <div>
+        <canvas id="pdf-canvas"></canvas>
+    </div>
+
+    <script>
+        // Path to your PDF file
+        const pdfUrl = 'https://github.com/Ehsan-Taheri/BrainTS2020-Unet/blob/bf680968c49266b2a1312906dce74ad003b50e96/Brain-Tumor-Segmentation-using-U-Net-with-Attention%20(1).pdf';
+
+        // Load the PDF
+        pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
+            // Fetch the first page
+            pdf.getPage(1).then(page => {
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale });
+
+                // Prepare canvas using PDF page dimensions
+                const canvas = document.getElementById('pdf-canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                // Render PDF page into canvas context
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                page.render(renderContext);
+            });
+        });
+    </script>
+</body>
+</html>
