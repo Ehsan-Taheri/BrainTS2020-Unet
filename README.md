@@ -1,1 +1,2 @@
-[View PDF](https://github.com/Ehsan-Taheri/BrainTS2020-Unet/blob/cd4925db3f7d58e5e2bb9fdb3523449651818cfc/index.html)
+
+[Brain_Tumor_Segmentation_using_U_Net_with_Attention_march_Final.pdf](https://github.com/user-attachments/files/19728043/Brain_Tumor_Segmentation_using_U_Net_with_Attention_march_Final.pdf)
